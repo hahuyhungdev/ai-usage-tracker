@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# ai-usage - Track AI token usage across platforms
+# Usage: ai-usage [command] [options]
+
+# Get the real script location (following symlinks)
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+exec npx tsx "$PROJECT_DIR/src/index.ts" "$@"
