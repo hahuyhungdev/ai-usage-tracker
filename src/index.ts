@@ -5,7 +5,7 @@ import { parseAntigravity } from "./parsers/antigravity.js";
 import { parseGeminiCli } from "./parsers/gemini-cli.js";
 import { parseOpenCode } from "./parsers/opencode.js";
 import { DailyUsage, SummaryItem, PlatformDailyUsage, sumUsage } from "./parsers/types.js";
-import { printSummary, printDaily, printGrouped, printWeeklyDaily, printMonthlyWeeks } from "./utils/table.js";
+import { printSummary, printDaily, printWeeklyDaily, printMonthlyWeeks } from "./utils/table.js";
 import { aggregateDailyUsage, getLatestWeekRange } from "./usage/weekly.js";
 import { aggregateMonthlyWeeks } from "./usage/monthly.js";
 
@@ -83,31 +83,6 @@ function getDateRange(opts: any, defaultRange?: { since?: string; until?: string
   };
 }
 
-function groupBy(data: DailyUsage[], keyFn: (d: DailyUsage) => string): Map<string, DailyUsage[]> {
-  const groups = new Map<string, DailyUsage[]>();
-  for (const entry of data) {
-    const key = keyFn(entry);
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(entry);
-  }
-  return groups;
-}
-
-function groupByWeek(data: DailyUsage[]): Map<string, DailyUsage[]> {
-  return groupBy(data, (entry) => {
-    const date = new Date(entry.date + "T00:00:00");
-    const day = date.getDay();
-    const diff = day === 0 ? 6 : day - 1;
-    const monday = new Date(date);
-    monday.setDate(date.getDate() - diff);
-    return monday.toISOString().split("T")[0];
-  });
-}
-
-function groupByMonth(data: DailyUsage[]): Map<string, DailyUsage[]> {
-  return groupBy(data, (entry) => entry.date.substring(0, 7));
-}
-
 // ── CLI ───────────────────────────────────────────────────────
 
 function addCommonOptions(cmd: Command): Command {
@@ -144,36 +119,6 @@ function handleSummary(opts: any, defaultRange?: { since?: string; until?: strin
   }
 
   printSummary(summary);
-}
-
-// Grouped handler (shared by weekly and monthly commands)
-function handleGrouped(
-  opts: any,
-  type: "weekly" | "monthly",
-  defaultRange?: { since?: string; until?: string },
-) {
-  const { since, until } = getDateRange(opts, defaultRange);
-  const results = collectAllData(getPlatformFilter(opts));
-
-  const allData: DailyUsage[] = [];
-  for (const r of results) allData.push(...filterByDate(r.data, since, until));
-
-  if (allData.length === 0) {
-    console.log("No usage data found.");
-    return;
-  }
-
-  const groups = type === "weekly" ? groupByWeek(allData) : groupByMonth(allData);
-
-  if (opts.json) {
-    const jsonOutput = Array.from(groups.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([period, data]) => ({ [type === "weekly" ? "week" : "month"]: period, ...sumUsage(data), days: data.length }));
-    console.log(JSON.stringify(jsonOutput, null, 2));
-    return;
-  }
-
-  printGrouped(groups, type);
 }
 
 function handleWeekly(opts: any): void {

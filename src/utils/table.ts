@@ -210,39 +210,4 @@ export function printMonthlyWeeks(rows: MonthlyWeekUsage[], since: string, until
   console.log(table.toString());
 }
 
-// ── Grouped (weekly/monthly) ──────────────────────────────────
 
-export function printGrouped(groups: Map<string, DailyUsage[]>, type: "weekly" | "monthly"): void {
-  const label = type === "weekly" ? "📅 WEEKLY" : "📅 MONTHLY";
-  console.log(chalk.bold.cyan(`\n${label} USAGE BREAKDOWN\n`));
-
-  const table = createTable(
-    [type === "weekly" ? "Week Starting" : "Month", "Days", "Total", "Cost", "Input", "Output", "Cache Read"],
-    ["left", "center", "right", "right", "right", "right", "right"],
-  );
-
-  let grand = { input: 0, output: 0, cacheRead: 0, total: 0, cost: 0 };
-
-  for (const key of Array.from(groups.keys()).sort()) {
-    const data = groups.get(key)!;
-    const t = sumUsage(data);
-    table.push([key, data.length.toString(), formatTokens(t.total), formatCost(t.cost), formatTokens(t.input), formatTokens(t.output), formatTokens(t.cacheRead)]);
-    grand.input += t.input;
-    grand.output += t.output;
-    grand.cacheRead += t.cacheRead;
-    grand.total += t.total;
-    grand.cost += t.cost;
-  }
-
-  table.push([
-    chalk.bold("TOTAL"),
-    chalk.bold(groups.size.toString()),
-    chalk.bold(formatTokens(grand.total)),
-    chalk.bold(formatCost(grand.cost)),
-    chalk.bold(formatTokens(grand.input)),
-    chalk.bold(formatTokens(grand.output)),
-    chalk.bold(formatTokens(grand.cacheRead)),
-  ]);
-
-  console.log(table.toString());
-}

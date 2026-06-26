@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync, existsSync } from "fs";
+import { readFileSync, readdirSync, existsSync } from "fs";
 import { join, extname, basename } from "path";
 import { homedir } from "os";
 import { TokenUsage, ModelUsage, PlatformConfig, DailyUsage } from "./types.js";
