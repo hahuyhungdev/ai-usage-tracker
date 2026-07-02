@@ -65,28 +65,44 @@ export function parseCodex(): DailyUsage[] {
             currentModel = entry.payload.model;
           }
 
-          // Extract token usage (cumulative - need to track delta)
+          // Extract token usage
           if (entry.type === "event_msg" && entry.payload?.type === "token_count") {
-            const usage = entry.payload.info.total_token_usage;
             const date = entry.timestamp.split("T")[0];
-
             if (!date) continue;
 
-            const totalInput = usage.input_tokens || 0;
-            const totalOutput = usage.output_tokens || 0;
-            const totalCacheRead = usage.cached_input_tokens || 0;
+            const totalUsage = entry.payload.info.total_token_usage || {};
+            const lastUsage = entry.payload.info.last_token_usage;
 
-            // Calculate delta (new tokens since last count)
-            const inputWithCache = Math.max(0, totalInput - lastTotalInput);
-            const output = Math.max(0, totalOutput - lastTotalOutput);
-            const cachedInput = Math.max(0, totalCacheRead - lastTotalCacheRead);
+            let inputWithCache = 0;
+            let output = 0;
+            let cachedInput = 0;
+
+            if (lastUsage) {
+              // If last_token_usage is present, we can read the step's tokens directly (highly accurate)
+              inputWithCache = lastUsage.input_tokens || 0;
+              output = lastUsage.output_tokens || 0;
+              cachedInput = lastUsage.cached_input_tokens || 0;
+            } else {
+              // Fallback to calculating delta from cumulative total_token_usage
+              const totalInput = totalUsage.input_tokens || 0;
+              const totalOutput = totalUsage.output_tokens || 0;
+              const totalCacheRead = totalUsage.cached_input_tokens || 0;
+
+              inputWithCache = Math.max(0, totalInput - lastTotalInput);
+              output = Math.max(0, totalOutput - lastTotalOutput);
+              cachedInput = Math.max(0, totalCacheRead - lastTotalCacheRead);
+            }
+
+            // Always update last totals from total_token_usage for the fallback tracking
+            lastTotalInput = totalUsage.input_tokens || 0;
+            lastTotalOutput = totalUsage.output_tokens || 0;
+            lastTotalCacheRead = totalUsage.cached_input_tokens || 0;
+
+            if (inputWithCache === 0 && output === 0 && cachedInput === 0) continue;
+
             const { input, cacheRead } = splitOpenAIInputTokens(inputWithCache, cachedInput);
             const total = input + output + cacheRead;
 
-            // Update last totals
-            lastTotalInput = totalInput;
-            lastTotalOutput = totalOutput;
-            lastTotalCacheRead = totalCacheRead;
 
             if (total === 0) continue;
 

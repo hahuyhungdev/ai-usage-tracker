@@ -43,11 +43,115 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   'mimo': { input: 0, output: 0, cacheRead: 0, cacheCreate: 0 },
 };
 
+export function normalizeModelName(model: string): string {
+  if (!model) return "gpt-4o-mini";
+
+  let normalized = model.toLowerCase().trim();
+
+  if (normalized.startsWith("models/")) {
+    normalized = normalized.substring("models/".length);
+  }
+
+  normalized = normalized.replace(/[\s_]+/g, "-");
+
+  // Gemini overrides
+  if (normalized.includes("gemini-3.5-flash-high") || (normalized.includes("gemini-3.5-flash") && normalized.includes("high"))) {
+    return "gemini-3.5-flash-high";
+  }
+  if (normalized.includes("gemini-3.5-flash")) {
+    return "gemini-3.5-flash";
+  }
+  if (normalized.includes("gemini-3-flash-preview")) {
+    return "gemini-3-flash-preview";
+  }
+  if (normalized.includes("gemini-2.5-flash")) {
+    return "gemini-2.5-flash";
+  }
+  if (normalized.includes("gemini-2.5-pro")) {
+    return "gemini-2.5-pro";
+  }
+  if (normalized.includes("gemini-2.0-flash")) {
+    return "gemini-2.0-flash";
+  }
+  if (normalized.includes("gemini-1.5-flash")) {
+    return "gemini-1.5-flash";
+  }
+  if (normalized.includes("gemini-1.5-pro")) {
+    return "gemini-1.5-pro";
+  }
+
+  // Claude overrides
+  if (normalized.includes("claude-opus-4") || normalized.includes("claude-4-opus") || normalized.includes("claude-opus-4.6")) {
+    return "claude-opus-4";
+  }
+  if (normalized.includes("claude-sonnet-4")) {
+    return "claude-sonnet-4";
+  }
+  if (normalized.includes("claude-3.5-sonnet") || normalized.includes("claude-3-5-sonnet")) {
+    return "claude-3.5-sonnet";
+  }
+  if (normalized.includes("claude-3-opus")) {
+    return "claude-3-opus";
+  }
+  if (normalized.includes("claude-3-sonnet")) {
+    return "claude-3-sonnet";
+  }
+  if (normalized.includes("claude-3-haiku")) {
+    return "claude-3-haiku";
+  }
+
+  // Mimo overrides
+  if (normalized.includes("mimo-v2.5-pro")) {
+    return "mimo-v2.5-pro";
+  }
+  if (normalized.includes("mimo-v2.5")) {
+    return "mimo-v2.5";
+  }
+  if (normalized.includes("mimo")) {
+    return "mimo";
+  }
+
+  // GPT overrides
+  if (normalized.includes("gpt-5.5")) {
+    return "gpt-5.5";
+  }
+  if (normalized.includes("gpt-5.4-mini")) {
+    return "gpt-5.4-mini";
+  }
+  if (normalized.includes("gpt-5.4")) {
+    return "gpt-5.4";
+  }
+  if (normalized.includes("gpt-5.3-codex")) {
+    return "gpt-5.3-codex";
+  }
+  if (normalized.includes("gpt-5-mini")) {
+    return "gpt-5-mini";
+  }
+  if (normalized.includes("gpt-5")) {
+    return "gpt-5";
+  }
+  if (normalized.includes("gpt-4o-mini")) {
+    return "gpt-4o-mini";
+  }
+  if (normalized.includes("gpt-4o")) {
+    return "gpt-4o";
+  }
+  if (normalized.includes("gpt-4-turbo")) {
+    return "gpt-4-turbo";
+  }
+  if (normalized.includes("gpt-4")) {
+    return "gpt-4";
+  }
+
+  return "gpt-4o-mini"; // fallback
+}
+
 export function calculateCost(
   model: string,
   tokens: { input: number; output: number; cacheRead: number; cacheCreate: number; total?: number }
 ): number {
-  const pricing = MODEL_PRICING[model] || MODEL_PRICING['gpt-4o-mini']; // fallback
+  const normalizedModel = normalizeModelName(model);
+  const pricing = MODEL_PRICING[normalizedModel];
 
   return (
     (tokens.input / 1_000_000) * pricing.input +
@@ -56,3 +160,4 @@ export function calculateCost(
     (tokens.cacheCreate / 1_000_000) * pricing.cacheCreate
   );
 }
+

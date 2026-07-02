@@ -1,8 +1,10 @@
 import { readFileSync, readdirSync, statSync, existsSync } from "fs";
-import { join } from "path";
+import { join, dirname } from "path";
 import { homedir } from "os";
 import { DailyUsage, ModelUsage, PlatformConfig } from "./types.js";
-import { calculateCost } from "../pricing/models.js";
+import { calculateCost, normalizeModelName } from "../pricing/models.js";
+import { execSync } from "child_process";
+import { fileURLToPath } from "url";
 
 interface HistoryEntry {
   display: string;
@@ -55,9 +57,78 @@ function readModelsByDate(agyDir: string): Map<string, string[]> {
 export function parseAntigravityFromDir(agyDir: string): DailyUsage[] {
   if (!existsSync(agyDir)) return [];
 
-  const historyFile = join(agyDir, "history.jsonl");
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  let scriptPath = join(__dirname, "parse-sqlite.py");
+  if (!existsSync(scriptPath)) {
+    scriptPath = join(__dirname, "../../src/parsers/parse-sqlite.py");
+  }
+
   const modelsByDate = readModelsByDate(agyDir);
+
+  let preciseUsage: Record<string, { input: number; output: number; cacheRead: number }> = {};
+  try {
+    const pyOutput = execSync(`python3 "${scriptPath}" "${agyDir}"`, {
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    preciseUsage = JSON.parse(pyOutput);
+  } catch (e) {
+    // Fallback to estimation if python script fails
+  }
+
+  if (Object.keys(preciseUsage).length > 0) {
+    return Object.entries(preciseUsage)
+      .map(([date, data]) => {
+        const detectedModels = modelsByDate.get(date) ?? [];
+        const modelsToUse = detectedModels.length > 0 ? detectedModels : ["gemini-2.5-flash"];
+        const modelCount = modelsToUse.length;
+
+        const note = `Accurately parsed from Antigravity conversation databases.`;
+        const modelsList: ModelUsage[] = modelsToUse.map((rawModelName) => {
+          const normalized = normalizeModelName(rawModelName);
+          const modelInput = Math.round(data.input / modelCount);
+          const modelOutput = Math.round(data.output / modelCount);
+          const modelCacheRead = Math.round(data.cacheRead / modelCount);
+          const modelTotal = modelInput + modelOutput + modelCacheRead;
+
+          return {
+            model: normalized,
+            input: modelInput,
+            output: modelOutput,
+            cacheCreate: 0,
+            cacheRead: modelCacheRead,
+            total: modelTotal,
+            cost: calculateCost(normalized, { input: modelInput, output: modelOutput, cacheCreate: 0, cacheRead: modelCacheRead }),
+            source: "measured" as const,
+            isEstimate: false,
+            note,
+          };
+        });
+
+        const totalCost = modelsList.reduce((sum, m) => sum + m.cost, 0);
+
+        return {
+          date,
+          input: data.input,
+          output: data.output,
+          cacheCreate: 0,
+          cacheRead: data.cacheRead,
+          total: data.input + data.output + data.cacheRead,
+          cost: totalCost,
+          source: "measured" as const,
+          isEstimate: false,
+          note,
+          modelNames: detectedModels,
+          models: modelsList,
+        };
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  const historyFile = join(agyDir, "history.jsonl");
   let historyEntries: HistoryEntry[] = [];
+
 
   try {
     const content = readFileSync(historyFile, "utf-8");
